@@ -141,6 +141,8 @@ ggplot(bind_rows(tmb_results, admb_results) %>%
   geom_errorbar(data = obs, aes(x = year, ymin = obs_lci, ymax = obs_uci))  +
   labs(title = 'RE model fits to biomass survey data')
 
+ggsave('biomass_survey_fits.png')
+
 # cpue survey data and model fits
 obs <- df %>%
   dplyr::rename(obs = cpue, obs_cv = cpue_cv) %>%
@@ -157,3 +159,4 @@ ggplot(bind_rows(tmb_results, admb_results) %>%
   geom_errorbar(data = obs, aes(x = year, ymin = obs_lci, ymax = obs_uci))  +
   labs(title = 'RE model fits to CPUE survey data')
 
+ggsave('cpue_survey_fits.png')
