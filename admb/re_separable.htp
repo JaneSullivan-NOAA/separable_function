@@ -19,9 +19,6 @@ class model_data : public ad_comm{
   data_vector cpue_cv;
   dvector log_cpue;
   dvector log_cpue_sd;
-  double nll_pe;
-  double nll_biomass;
-  double nll_cpue;
   ~model_data();
   model_data(int argc,char * argv[]);
   friend class model_parameters;
@@ -81,6 +78,9 @@ private:
   param_stddev_vector biomass_pred;
   param_stddev_vector cpue_pred;
   param_stddev_vector log_cpue_pred;
+  param_number  nll_pe;
+  param_number  nll_biomass;
+  param_number  nll_cpue;
   param_number prior_function_value;
   param_number likelihood_function_value;
   objective_function_value  jnll;
@@ -136,6 +136,9 @@ public:
   df1b2vector biomass_pred;
   df1b2vector cpue_pred;
   df1b2vector log_cpue_pred;
+  df1b2variable  nll_pe;
+  df1b2variable  nll_biomass;
+  df1b2variable  nll_cpue;
   df1b2variable prior_function_value;
   df1b2variable likelihood_function_value;
    // re_objective_function_value  jnll;

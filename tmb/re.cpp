@@ -62,26 +62,27 @@ Type objective_function<Type>::operator() ()
   log_cpue_sd = sqrt(log(log_cpue_sd));
 
   // random effects contribution to likelihood
-  Type jnlltst0 = 0;
+  Type nll_pe = 0;
 
   for(int i = 1; i < nyrs; i++) {
 
     jnll(0) -= dnorm(log_biomass_pred(i-1), log_biomass_pred(i), exp(log_PE), 1);
 
-    jnlltst0 += Type(0.5) * log(Type(2.0) * PI * exp(Type(2.0) * log_PE) +
-      square(log_biomass_pred(i) - log_biomass_pred(i-1)) / exp(Type(2.0) * log_PE));
+    nll_pe += Type(0.5) * (log(Type(2.0) * PI * exp(Type(2.0) * log_PE)) +
+      square(log_biomass_pred(i-1) - log_biomass_pred(i)) / exp(Type(2.0) * log_PE));
+
   }
 
   // likelihood for biomass survey data/observation error
-  Type jnlltst1 = 0;
+  Type nll_biomass = 0;
 
   for(int i = 0; i < nyrs; i++) {
+
     if(biomass(i) > 0) {
       jnll(1) -= dnorm(log_biomass_pred(i), log_biomass(i), log_biomass_sd(i), 1);
 
-      jnlltst1 += Type(0.5) * (log(Type(2.0) * PI * square(log_biomass_sd(i))) +
+      nll_biomass += Type(0.5) * (log(Type(2.0) * PI * square(log_biomass_sd(i))) +
         square(log_biomass_pred(i) - log_biomass(i)) / square(log_biomass_sd(i)));
-
     }
   }
   biomass_pred = exp(log_biomass_pred);
@@ -92,14 +93,15 @@ Type objective_function<Type>::operator() ()
   }
   log_cpue_pred = log(cpue_pred);
 
-  // likelihood for cpue survey data/observation error
-  Type jnlltst2 = 0;
+  // likelihood for cpue survey data/observation error - add 0.5 likelihood
+  // weight (to get the outside admb version to converge)
+  Type nll_cpue = 0;
 
   for(int i = 0; i < nyrs; i++) {
     if(cpue(i) > 0) {
-      jnll(2) -= dnorm(log_cpue_pred(i), log_cpue(i), log_cpue_sd(i), 1);
+      jnll(2) -= Type(0.5) * dnorm(log_cpue_pred(i), log_cpue(i), log_cpue_sd(i), 1);
 
-      jnlltst2 += Type(0.5) * (log(Type(2.0) * PI * square(log_cpue_sd(i))) +
+      nll_cpue += Type(0.5) * Type(0.5) * (log(Type(2.0) * PI * square(log_cpue_sd(i))) +
         square(log_cpue_pred(i) - log_cpue(i)) / square(log_cpue_sd(i)));
     }
   }
@@ -109,9 +111,9 @@ Type objective_function<Type>::operator() ()
   ADREPORT(log_cpue_pred);
 
   REPORT(jnll);
-  REPORT(jnlltst0);
-  REPORT(jnlltst1);
-  REPORT(jnlltst2);
+  REPORT(nll_pe);
+  REPORT(nll_biomass);
+  REPORT(nll_cpue);
 
   nll = jnll.sum();
   return nll;
