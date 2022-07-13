@@ -38,7 +38,7 @@ write_dat <- function(df = NULL,
 # Data ----
 
 # ye example
-# df <- read.csv('ye_cseo.csv')  mutate(nll = ifelse(nll == 'jnll', 'total_nll', nll)) %>%
+# df <- read.csv('ye_cseo.csv')
 
 # sst cgoa
 df <- read.csv('sst_cgoa.csv')
