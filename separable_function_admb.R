@@ -6,7 +6,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(TMB)
-devtools::install_github('Cole-Monnahan-NOAA/adnuts', ref='dev')
+## devtools::install_github('Cole-Monnahan-NOAA/adnuts', ref='dev')
 library(adnuts)
 # function to write ADMB dat files
 write_dat <- function(df = NULL,
@@ -81,10 +81,12 @@ tmb_pars <- tmb_pars %>%
   select(version, variable, pred, pred_lci, pred_uci)
 
 tmb_nll <- data.frame(version = 'tmb',
-                      nll = c('nll_pe', 'nll_biomass', 'nll_cpue', 'jnll'),
+                      nll = c('nll_pe', 'nll_biomass',
+                      'nll_cpue', 'jnll', 'mnll'),
                       value = c(obj$report()$jnll[1],
                                  obj$report()$jnll[2],
-                                 obj$report()$jnll[3],
+                                obj$report()$jnll[3],
+                                sum(obj$report()$jnll),
                                 opt$objective))
 
 tmb_results <- tidyr::expand_grid(variable = unique(names(rep$value)),
@@ -110,7 +112,11 @@ write_dat(df = df,
           sep_fxn_flag = 0,
           fn = 'admb/inside/inside')
 setwd('admb/inside/')
-system('re_separable -ind inside.dat')
+write.table(as.numeric(obj$env$last.par.best), file='init.pin', row.names=FALSE, col.names=FALSE)
+system('re_separable -ind inside.dat -ainp init.pin -maxfn 0 -nohess')
+nll_inside_init<- read.table('RE_SEP~1.rep')
+names(nll_inside_init) <- c('nll', 'value')
+system('re_separable -ind inside.dat -ainp init.pin')
 results_inside <- read.table('RE_SEP~1.std',header = TRUE) %>%
   as.data.frame()
 nll_inside <- read.table('RE_SEP~1.rep')
@@ -127,7 +133,11 @@ write_dat(df = df,
           sep_fxn_flag = 1,
           fn = file.path('admb/outside/','outside'))
 setwd('admb/outside/')
-system('re_separable -ind outside.dat')
+write.table(as.numeric(obj$env$last.par.best), file='init.pin', row.names=FALSE, col.names=FALSE)
+system('re_separable -ind outside.dat -ainp init.pin -maxfn 0 -nohess')
+nll_outside_init<- read.table('RE_SEP~1.rep')
+names(nll_outside_init) <- c('nll', 'value')
+system('re_separable -ind outside.dat -ainp init.pin')
 results_outside <- read.table('RE_SEP~1.std',header = TRUE) %>%
   as.data.frame()
 nll_outside <- read.table('RE_SEP~1.rep')
@@ -203,19 +213,25 @@ ggplot(bind_rows(tmb_results, admb_results) %>%
 
 ggsave('cpue_survey_fits.png')
 
-# nlls
-nlls <- bind_rows(tmb_nll,
-          bind_rows(nll_inside %>%
-                      mutate(version = 'admb_inside_sepfxn'),
-                    nll_outside %>%
-                      mutate(version = 'admb_outside_sepfxn'))) %>%
-  mutate(nll = ifelse(nll == 'jnll', 'total_nll', nll))
+## get the marginal NLL too
+minside <- adnuts:::.read_mle_fit('re_separable', path='admb/inside')$nll
+moutside <- adnuts:::.read_mle_fit('re_separable', path='admb/outside')$nll
 
-nlls %>%
-  ggplot(aes(x = nll, y = value, col = version, fill = version)) +
-  geom_bar(stat = 'identity', position = 'dodge')
+cbind(tmb_nll[,-1], inside=c(nll_inside_init[,2],minside), outside=c(nll_outside_init[,2],moutside))
 
-ggsave('likelihood_components.png')
+## # nlls
+## nlls <- bind_rows(tmb_nll,
+##           bind_rows(nll_inside %>%
+##                       mutate(version = 'admb_inside_sepfxn'),
+##                     nll_outside %>%
+##                       mutate(version = 'admb_outside_sepfxn'))) %>%
+##   mutate(nll = ifelse(nll == 'jnll', 'total_nll', nll))
+
+## nlls %>%
+##   ggplot(aes(x = nll, y = value, col = version, fill = version)) +
+##   geom_bar(stat = 'identity', position = 'dodge')
+
+## ggsave('likelihood_components.png')
 
 # parameter estimates
 pars <- bind_rows(admb_pars, tmb_pars)
