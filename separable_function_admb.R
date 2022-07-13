@@ -6,7 +6,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(TMB)
-
+library(adnuts)
 # function to write ADMB dat files
 write_dat <- function(df = NULL,
                       sep_fxn_flag,
@@ -227,3 +227,94 @@ pars %>%
   labs(x = 'parameter', y = 'estimate')
 
 ggsave('parameter_estimates.png')
+
+
+
+
+## compare to MCMC
+unlink(file.path('admb', 'inside'), recursive = T)
+dir.create(file.path('admb', 'inside'))
+file.copy(from = file.path('admb', 're_sep_mcmc.exe'),
+          to = file.path('admb/inside', 're_sep_mcmc.exe'),
+          overwrite = TRUE)
+write_dat(df = df,
+          sep_fxn_flag = 0,
+          fn = 'admb/inside/inside')
+init.fn <- function() {rnorm(39)}
+fit_inside <- sample_nuts('re_sep_mcmc', path='admb/inside',
+                          cores=1, chains=3,
+                          control=list(metric=NULL),
+                          skip_optimization=TRUE,
+                          init=init.fn,
+                          admb_args='-ind inside.dat')
+
+## Need to run mceval manually from command line
+post.inside <- read.table('admb/inside/post.dat', sep=' ',
+                          header=FALSE)[,-1] %>%
+  setNames(1984:2020) %>% mutate(iter=1:n()) %>%
+  pivot_longer(-iter) %>%
+  transmute(iter=iter, year=as.numeric(name), biomass=exp(value))
+
+
+unlink(file.path('admb', 'outside'), recursive = T)
+dir.create(file.path('admb', 'outside'))
+file.copy(from = file.path('admb', 're_sep_mcmc.exe'),
+          to = file.path('admb/outside', 're_sep_mcmc.exe'),
+          overwrite = TRUE)
+write_dat(df = df,
+          sep_fxn_flag = 1,
+          fn = 'admb/outside/outside')
+init.fn <- function() {rnorm(39)}
+fit_outside <- sample_nuts('re_sep_mcmc', path='admb/outside',
+                          cores=1, chains=3,
+                          control=list(metric=NULL),
+                          skip_optimization=TRUE,
+                          init=init.fn,
+                          admb_args='-ind outside.dat')
+
+## Need to run mceval manually from command line
+post.outside <- read.table('admb/outside/post.dat', sep=' ',
+                          header=FALSE)[,-1] %>%
+  setNames(1984:2020) %>% mutate(iter=1:n()) %>%
+unlink(file.path('admb', 'inside'), recursive = T)
+dir.create(file.path('admb', 'inside'))
+file.copy(from = file.path('admb', 're_sep_mcmc.exe'),
+          to = file.path('admb/inside', 're_sep_mcmc.exe'),
+          overwrite = TRUE)
+write_dat(df = df,
+          sep_fxn_flag = 0,
+          fn = 'admb/inside/inside')
+init.fn <- function() {rnorm(39)}
+fit_inside <- sample_nuts('re_sep_mcmc', path='admb/inside',
+                          cores=1, chains=3,
+                          control=list(metric=NULL),
+                          skip_optimization=TRUE,
+                          init=init.fn,
+                          admb_args='-ind inside.dat')
+
+## Need to run mceval manually from command line
+post.inside <- read.table('admb/inside/post.dat', sep=' ',
+                          header=FALSE)[,-1] %>%
+  setNames(1984:2020) %>% mutate(iter=1:n()) %>%
+  pivot_longer(-iter) %>%
+  transmute(iter=iter, year=as.numeric(name), biomass=exp(value))
+
+  pivot_longer(-iter) %>%
+  transmute(iter=iter, year=as.numeric(name), biomass=exp(value))
+
+
+posts <- bind_rows(cbind(version='admb_inside_sepfxn', post.inside),
+                   cbind(version='admb_outside_sepfxn',
+                         post.outside)) %>%
+  group_by(year,version) %>%
+  summarize(pred=median(biomass),
+            pred_lci=quantile(biomass, 0.025),
+            pred_uci=quantile(biomass, .975)) %>%
+    mutate(type='MCMC')
+
+results <- bind_rows(posts, cbind(filter(admb_results, variable=='biomass_pred'), type='MLE'))
+
+
+ggplot(results, aes(year, pred, ymin=pred_lci, ymax=pred_uci,
+  fill=type,  color=type)) +
+  geom_line() + geom_ribbon(alpha=.5) + facet_wrap('version')
