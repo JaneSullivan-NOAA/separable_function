@@ -70,7 +70,7 @@ In the two data examples provided, the ADMB outside version of the model is sens
    tibble        3.1.7   2022-05-03 [1] CRAN (R 4.2.0)
    tidyr       * 1.2.0   2022-02-01 [1] CRAN (R 4.2.0)
    tidyselect    1.1.2   2022-02-21 [1] CRAN (R 4.2.0)
- D TMB         * 1.9.0   2022-05-27 [1] CRAN (R 4.2.0)
+   TMB         * 1.9.0   2022-05-27 [1] CRAN (R 4.2.0)
    usethis     * 2.1.6   2022-05-25 [1] CRAN (R 4.2.0)
    utf8          1.2.2   2021-07-24 [1] CRAN (R 4.2.0)
    vctrs         0.4.1   2022-04-13 [1] CRAN (R 4.2.0)
