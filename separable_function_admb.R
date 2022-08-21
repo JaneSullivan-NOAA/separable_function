@@ -6,8 +6,9 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(TMB)
-## devtools::install_github('Cole-Monnahan-NOAA/adnuts', ref='dev')
+# devtools::install_github('Cole-Monnahan-NOAA/adnuts', ref='dev')
 library(adnuts)
+
 # function to write ADMB dat files
 write_dat <- function(df = NULL,
                       sep_fxn_flag,
@@ -73,14 +74,14 @@ names(sd) <- c('sd')
 tmb_pars <- pars %>%
   bind_cols(sd)
 tmb_pars <- tmb_pars %>%
-  mutate(version = 'tmb',
+  mutate(version = 'TMB',
          variable = c('PE', 'q'),
          pred = exp(log_est),
          pred_lci = exp(log_est - 1.96 * sd),
          pred_uci = exp(log_est + 1.96 * sd)) %>%
   select(version, variable, pred, pred_lci, pred_uci)
 
-tmb_nll <- data.frame(version = 'tmb',
+tmb_nll <- data.frame(version = 'TMB',
                       nll = c('nll_pe', 'nll_biomass',
                       'nll_cpue', 'jnll', 'mnll'),
                       value = c(obj$report()$jnll[1],
@@ -91,7 +92,7 @@ tmb_nll <- data.frame(version = 'tmb',
 
 tmb_results <- tidyr::expand_grid(variable = unique(names(rep$value)),
                                   year = tmbdat$yrs) %>%
-  mutate(version = 'tmb',
+  mutate(version = 'TMB',
          estimate = rep$value,
          sd = rep$sd,
          variable = ifelse(grepl('biomass', variable), 'biomass_pred', 'cpue_pred')) %>%
@@ -145,9 +146,9 @@ names(nll_outside) <- c('nll', 'value')
 setwd('../..')
 
 admb_results <- results_inside %>%
-  mutate(version = 'admb_inside_sepfxn') %>%
+  mutate(version = 'ADMB inside') %>%
   bind_rows(results_outside %>%
-              mutate(version = 'admb_outside_sepfxn')) %>%
+              mutate(version = 'ADMB outside (status quo)')) %>%
   filter(name %in% c('log_biomass_pred', 'log_cpue_pred', 'log_q', 'log_PE')) %>%
   mutate(variable = dplyr::case_when(name == 'log_biomass_pred' ~ 'biomass_pred',
                                      name == 'log_cpue_pred' ~ 'cpue_pred',
@@ -164,9 +165,9 @@ admb_results <- admb_results %>%
   mutate(year = rep(unique(tmb_results$year), 4))
 
 admb_results <- results_inside %>%
-  mutate(version = 'admb_inside_sepfxn') %>%
+  mutate(version = 'ADMB inside') %>%
   bind_rows(results_outside %>%
-              mutate(version = 'admb_outside_sepfxn')) %>%
+              mutate(version = 'ADMB outside (status quo)')) %>%
   filter(name %in% c('log_biomass_pred', 'log_cpue_pred')) %>%
   mutate(variable = ifelse(grepl('biomass', name), 'biomass_pred', 'cpue_pred'),
          pred = exp(value),
@@ -187,11 +188,14 @@ obs <- df %>%
 
 ggplot(bind_rows(tmb_results, admb_results) %>%
          filter(variable == 'biomass_pred')) +
-  geom_ribbon(aes(x = year, col = version, fill = version, ymin = pred_lci, ymax = pred_uci), alpha = 0.2, col = NA) +
-  geom_line(aes(x = year, y = pred, lty = version, col = version, fill = version)) +
+  geom_ribbon(aes(x = year, col = version, fill = version, ymin = pred_lci, ymax = pred_uci),
+              alpha = 0.2, col = NA) +
+  geom_line(aes(x = year, y = pred, lty = version, col = version, fill = version), size = 1) +
   geom_point(data = obs, aes(x = year, y = obs)) +
   geom_errorbar(data = obs, aes(x = year, ymin = obs_lci, ymax = obs_uci))  +
-  labs(title = 'RE model fits to biomass survey data')
+  labs(title = 'REMA model fits to biomass survey data', y = 'Biomass (t)', x = NULL) +
+  scale_y_continuous(labels = scales::comma) +
+  ggplot2::scale_fill_viridis_d(direction = 1) + ggplot2::scale_colour_viridis_d(direction = 1)
 
 ggsave('biomass_survey_fits.png')
 
@@ -206,25 +210,29 @@ obs <- df %>%
 ggplot(bind_rows(tmb_results, admb_results) %>%
          filter(variable == 'cpue_pred')) +
   geom_ribbon(aes(x = year, col = version, fill = version, ymin = pred_lci, ymax = pred_uci), alpha = 0.2, col = NA) +
-  geom_line(aes(x = year, y = pred, lty = version, col = version, fill = version)) +
+  geom_line(aes(x = year, y = pred, lty = version, col = version, fill = version), size = 1) +
   geom_point(data = obs, aes(x = year, y = obs)) +
   geom_errorbar(data = obs, aes(x = year, ymin = obs_lci, ymax = obs_uci))  +
-  labs(title = 'RE model fits to CPUE survey data')
+  labs(title = 'REMA model fits to CPUE survey data', y = 'CPUE', x = NULL) +
+  scale_y_continuous(labels = scales::comma) +
+  ggplot2::scale_fill_viridis_d(direction = 1) + ggplot2::scale_colour_viridis_d(direction = 1)
 
 ggsave('cpue_survey_fits.png')
 
 ## get the marginal NLL too
 minside <- adnuts:::.read_mle_fit('re_separable', path='admb/inside')$nll
 moutside <- adnuts:::.read_mle_fit('re_separable', path='admb/outside')$nll
+minside <- adnuts:::.read_mle_fit('RE_SEP~1', path='admb/inside')$nll
+moutside <- adnuts:::.read_mle_fit('RE_SEP~1', path='admb/outside')$nll
 
-cbind(tmb_nll[,-1], inside=c(nll_inside_init[,2],minside), outside=c(nll_outside_init[,2],moutside))
-
+nlls <- cbind(tmb_nll[,-1], inside=c(nll_inside_init[,2],minside), outside=c(nll_outside_init[,2],moutside))
+write.csv(nlls, 'nll_components.csv')
 ## # nlls
 ## nlls <- bind_rows(tmb_nll,
 ##           bind_rows(nll_inside %>%
-##                       mutate(version = 'admb_inside_sepfxn'),
+##                       mutate(version = 'ADMB inside'),
 ##                     nll_outside %>%
-##                       mutate(version = 'admb_outside_sepfxn'))) %>%
+##                       mutate(version = 'ADMB outside (status quo)'))) %>%
 ##   mutate(nll = ifelse(nll == 'jnll', 'total_nll', nll))
 
 ## nlls %>%
@@ -242,13 +250,9 @@ pars %>%
                 position = 'dodge', col = 'black') +
   facet_wrap(~variable, scales = 'free_y') +
   labs(x = 'parameter', y = 'estimate')
-
 ggsave('parameter_estimates.png')
 
-
-
-
-## compare to MCMC
+## compare to MCMC ----
 unlink(file.path('admb', 'inside'), recursive = T)
 dir.create(file.path('admb', 'inside'))
 file.copy(from = file.path('admb', 're_sep_mcmc.exe'),
@@ -291,6 +295,7 @@ fit_outside <- sample_nuts('re_sep_mcmc', path='admb/outside',
                           skip_optimization=TRUE,
                           init=init.fn,
                           admb_args='-ind outside.dat')
+
 ## Need to run mceval manually from command line
 setwd('admb/outside')
 system("re_sep_mcmc -ind outside.dat -mceval")
@@ -304,8 +309,8 @@ post.outside <- read.table('admb/outside/post.dat', sep=' ',
 
 
 
-posts <- bind_rows(cbind(version='admb_inside_sepfxn', post.inside),
-                   cbind(version='admb_outside_sepfxn',
+posts <- bind_rows(cbind(version='ADMB inside', post.inside),
+                   cbind(version='ADMB outside (status quo)',
                          post.outside)) %>%
   group_by(year,version) %>%
   summarize(pred=median(biomass),
@@ -319,3 +324,21 @@ ggplot(results, aes(year, pred, ymin=pred_lci, ymax=pred_uci,
   fill=type,  color=type)) +
   geom_line() + geom_ribbon(alpha=.5) + facet_wrap('version', ncol=1)
 ggsave("mcmc_comparison.png")
+
+ggplot(results,# %>%
+         # bind_rows(tmb_results %>%
+         #             filter(variable == 'biomass_pred') %>%
+         #             select(-variable) %>%
+         #             mutate(type = 'MLE')),
+       aes(year, pred, ymin=pred_lci, ymax=pred_uci,
+  fill=version,  color=version)) +
+  geom_ribbon(alpha=.2, col = NA) +
+  geom_line(size = 1) +
+  facet_wrap(~type, ncol=1) +
+  labs(title = 'REMA model predictions', y = 'Biomass (t)', x = NULL) +
+  scale_y_continuous(labels = scales::comma) +
+  ggplot2::scale_fill_viridis_d(direction = 1) + ggplot2::scale_colour_viridis_d(direction = 1)
+
+ggsave("mcmc_comparison2.png")
+
+
